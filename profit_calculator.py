@@ -98,7 +98,6 @@ def on_sell(ts, asset, quantity, total):
                                        usd_basis))
     return gains
 
-
 def main(csv_filename):
     with open(csv_filename, newline='') as csvfile:
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
@@ -112,8 +111,6 @@ def main(csv_filename):
                 # skip it. It's some coinbase header nonsense.
                 continue
             asset = row[2]
-            if asset.upper() != "BTC":
-                continue
             txn_type = row[1]
             if txn_type.lower() == "buy":
                 on_buy(timestamp, asset.upper(), Decimal(row[3]), Decimal(row[6]))
