@@ -17,6 +17,7 @@ def btc_to_satoshi(btc):
 
 
 queue = []
+total_profits = []
 
 
 class TransactionRecord:
@@ -32,15 +33,18 @@ class TransactionRecord:
         self.proceeds = sale_price
         self.basis = acq_price
         self.gain = self.proceeds - self.basis
-        self.islong = (self.sell_date - self.acq_date) > datetime.timedelta(weeks=52)
+
+        # long-term gains are long-term if the asset is held for more than a
+        # year.
+        elapsed = (self.sell_date - self.acq_date)
+        year = datetime.timedelta(weeks=52)
+        self.islong = elapsed > year
 
     def getlong(self):
         if self.islong:
             return "long"
         else:
             return "short"
-
-total_profits = []
 
 
 def on_buy(ts, quantity, total):
