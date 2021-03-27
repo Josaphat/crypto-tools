@@ -21,6 +21,7 @@ def btc_to_satoshi(btc):
     return int(btc * Decimal(1.0e8))
 
 
+vv = 0
 queues = {}
 total_profits = []
 other_income = []
@@ -69,8 +70,9 @@ class TransactionRecord:
 
 
 def on_buy(ts, asset, quantity, total):
-    print("{} acquire  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]\n"
-          .format(ts, quantity, asset, total, total/quantity))
+    if vv >= 1:
+        print("{} acquire  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]\n"
+              .format(ts, quantity, asset, total, total/quantity))
     if asset not in queues:
         queues[asset] = []
     queues[asset.upper()].append((ts, quantity, total/quantity))
@@ -79,8 +81,9 @@ def on_buy(ts, asset, quantity, total):
 def on_sell(ts, asset, quantity, total):
     sell_date = ts
 
-    print("{} dispose  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]"
-          .format(ts, quantity, asset, total, total/quantity), end='')
+    if vv >= 1:
+        print("{} dispose  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]"
+              .format(ts, quantity, asset, total, total/quantity), end='')
 
     sell_value_per_qty = total/quantity
 
@@ -115,6 +118,32 @@ def on_income(ts, asset, quantity, total):
     on_buy(ts, asset, quantity, total)
 
 
+def print_reports():
+    if vv >= 2:
+        print("=== GENERATING REPORTS ===")
+
+    print(outputheader, end='')
+
+    netgain = sum([x.gain for x in total_profits])
+    for txn in total_profits:
+        print(outfmt.format(txn.quantity,
+                            txn.asset,
+                            txn.acq_date,
+                            txn.sell_date,
+                            txn.proceeds,
+                            txn.basis,
+                            txn.gain,
+                            txn.getlong()), end='')
+
+    print("\n   net profits: ${:8.2f}".format(netgain))
+
+    print("\n Other income: ")
+    for income in other_income:
+        print("Earned ${:10.2f} (as {} {}) on {}".format(income[3], income[2], income[1], income[0]))
+    print("      -------------")
+    print("Tot:   ${:10.2f}".format(sum([x[3] for x in other_income])))
+
+
 def main(csv_filename):
     with open(csv_filename, newline='') as csvfile:
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
@@ -140,14 +169,16 @@ def main(csv_filename):
                                 Decimal(row[3]),
                                 Decimal(row[3]) * Decimal(row[4]))
                 total_profits.extend(gains)
-                print('\n')
+                if vv >= 1:
+                    print('\n')
             elif txn_type.lower().startswith("sell"):
                 gains = on_sell(timestamp,
                                 asset.upper(),
                                 Decimal(row[3]),
                                 Decimal(row[6]))
                 total_profits.extend(gains)
-                print('\n')
+                if vv >= 1:
+                    print('\n')
             elif (txn_type.lower().startswith("coinbase earn")
                   or txn_type.lower().startswith("rewards income")):
                 on_income(timestamp,
@@ -156,30 +187,13 @@ def main(csv_filename):
                           Decimal(row[3]) * Decimal(row[4]))
             else:
                 print("IGNORING", txn_type)
-        print(outputheader, end='')
-
-        netgain = sum([x.gain for x in total_profits])
-        for txn in total_profits:
-            print(outfmt.format(txn.quantity,
-                                txn.asset,
-                                txn.acq_date,
-                                txn.sell_date,
-                                txn.proceeds,
-                                txn.basis,
-                                txn.gain,
-                                txn.getlong()), end='')
-
-        print("\n   net profits: ${:8.2f}".format(netgain))
-
-        print("\n Other income: ")
-        for income in other_income:
-            print("Earned ${:10.2f} (as {} {}) on {}".format(income[3], income[2], income[1], income[0]))
-        print("      -------------")
-        print("Tot:   ${:10.2f}".format(sum([x[3] for x in other_income])))
+        print_reports()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_file")
+    parser.add_argument("-v", "--verbosity", action="count", default=0)
+    parser.add_argument("csv_file", help="File to process")
     args = parser.parse_args()
+    vv = args.verbosity
     main(args.csv_file)
