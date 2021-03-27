@@ -8,7 +8,6 @@
 # Known shortcomings:
 #   - Only supports FIFO
 #   - No support for transactions between currencies
-#   - No support for Coinbase Earn or Rewards income
 
 import argparse
 import csv
