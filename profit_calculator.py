@@ -4,6 +4,11 @@
 # FIFO, LIFO, and other cost basis methods. (Will eventually) appends the
 # profits to the relevant rows of the csv.  Assumes the format of the Coinbase
 # spreadsheet.
+#
+# Known shortcomings:
+#   - Only supports FIFO
+#   - No support for transactions between currencies
+#   - No support for Coinbase Earn or Rewards income
 
 import argparse
 import csv
