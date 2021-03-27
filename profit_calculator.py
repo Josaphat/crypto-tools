@@ -51,7 +51,7 @@ def on_buy(ts, quantity, total):
     satoshi = btc_to_satoshi(quantity)
     print("{} acquire  {:01.8f} BTC ({:9d} satoshi) for {:0.2f} USD [[{}]]\n"
           .format(ts, quantity, satoshi, total, total/satoshi))
-    queue.append((ts, satoshi, total/satoshi))
+    queue.append((ts, quantity, total/quantity))
 
 
 def on_sell(ts, quantity, total):
@@ -61,25 +61,25 @@ def on_sell(ts, quantity, total):
     print("{} dispose  {:01.8f} BTC ({:9d} satoshi) for {:0.2f} USD [[{}]]"
           .format(ts, quantity, satoshi, total, total/satoshi), end='')
 
-    sell_value_per_satoshi = total/satoshi
+    sell_value_per_qty = total/quantity
 
     gains = []
-    while satoshi > 0:
+    while quantity > 0:
         acqtime = queue[0][0]
-        per_satoshi = queue[0][2]
-        sts = 0
+        buy_value_per_qty = queue[0][2]
+        qty = 0
 
-        if queue[0][1] > satoshi:
+        if queue[0][1] > quantity:
             # print(" (enough) ", end='')
-            sts = satoshi
-            queue[0] = (queue[0][0], queue[0][1] - sts, queue[0][2])
-            satoshi = 0
+            qty = quantity
+            queue[0] = (queue[0][0], queue[0][1] - qty, queue[0][2])
+            quantity = 0
         else:
             # print(" (notenough) ", end='')
-            sts = queue[0][1]
-            satoshi -= sts
+            qty = queue[0][1]
+            quantity -= qty
             queue.pop(0)
-        usd_basis = sts * per_satoshi
+        usd_basis = qty * buy_value_per_qty
         # print("usd_basis:", usd_basis)
         # profit = (sts * sell_value_per_satoshi) - usd_basis
         # print("profit:", profit)
@@ -89,10 +89,10 @@ def on_sell(ts, quantity, total):
         # else:
         #     term = "SHORT"
         # gains.append((profit, term, ts.isoformat()))
-        gains.append(TransactionRecord(("{:10.8f} BTC".format(sts / Decimal(1e8))),
+        gains.append(TransactionRecord(("{:10.8f} BTC".format(qty)),
                                        acqtime,
                                        sell_date,
-                                       (sts * sell_value_per_satoshi),
+                                       (qty * sell_value_per_qty),
                                        usd_basis))
     return gains
 
