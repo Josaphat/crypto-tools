@@ -17,6 +17,29 @@ def btc_to_satoshi(btc):
 
 
 queue = []
+
+
+class TransactionRecord:
+    def __init__(self,
+                 description,
+                 date_acquired,
+                 date_sold,
+                 sale_price,
+                 acq_price):
+        self.descr = description
+        self.acq_date = date_acquired
+        self.sell_date = date_sold
+        self.proceeds = sale_price
+        self.basis = acq_price
+        self.gain = self.proceeds - self.basis
+        self.islong = (self.sell_date - self.acq_date) > datetime.timedelta(weeks=52)
+
+    def getlong(self):
+        if self.islong:
+            return "long"
+        else:
+            return "short"
+
 total_profits = []
 
 
@@ -28,6 +51,8 @@ def on_buy(ts, quantity, total):
 
 
 def on_sell(ts, quantity, total):
+    sell_date = ts
+
     satoshi = btc_to_satoshi(quantity)
     print("{} dispose  {:01.8f} BTC ({:9d} satoshi) for {:0.2f} USD [[{}]]"
           .format(ts, quantity, satoshi, total, total/satoshi), end='')
@@ -52,14 +77,19 @@ def on_sell(ts, quantity, total):
             queue.pop(0)
         usd_basis = sts * per_satoshi
         # print("usd_basis:", usd_basis)
-        profit = (sts * sell_value_per_satoshi) - usd_basis
+        # profit = (sts * sell_value_per_satoshi) - usd_basis
         # print("profit:", profit)
-        term = ""
-        if (ts - acqtime) > datetime.timedelta(weeks=52):
-            term = "LONG"
-        else:
-            term = "SHORT"
-        gains.append((profit, term, ts.isoformat()))
+        # term = ""
+        # if (ts - acqtime) > datetime.timedelta(weeks=52):
+        #     term = "LONG"
+        # else:
+        #     term = "SHORT"
+        # gains.append((profit, term, ts.isoformat()))
+        gains.append(TransactionRecord(("{:10.8f} BTC".format(sts / Decimal(1e8))),
+                                       acqtime,
+                                       sell_date,
+                                       (sts * sell_value_per_satoshi),
+                                       usd_basis))
     return gains
 
 
@@ -101,12 +131,23 @@ def main(csv_filename):
                 print('\n')
             else:
                 print("IGNORING", txn_type)
-        print("===================================")
-        print("total profits:")
-        netgain = sum([x[0] for x in total_profits])
-        for el in total_profits:
-            print(el)
-        print("net gain:", netgain)
+        print("""============================================
+Sales and Other Dispositions of Capital Assets
+----------------------------------------------
+
+   Description  |    Date    |    Date    |            |    Cost    |   Gains/   | Short or
+   of Property  |  Acquired  |    Sold    |  Proceeds  |  (basis)   |   Losses   | Long term
+----------------+------------+------------+------------+------------+------------+------------
+""", end='')
+
+        netgain = sum([x.gain for x in total_profits])
+        for txn in total_profits:
+            print(" {} | {:%Y-%m-%d} | {:%Y-%m-%d} | {:10.2f} | {:10.2f} | {:10.2f} | {}\t".format(
+                txn.descr, txn.acq_date, txn.sell_date, txn.proceeds, txn.basis, txn.gain, txn.getlong()
+                                                                    ))
+            # print("{}\t ${:8.2f}\t ({}-term)".format(el[2], el[0], el[1]).lower())
+
+        print("\n   net profits: ${:8.2f}".format(netgain))
 
 
 if __name__ == "__main__":
