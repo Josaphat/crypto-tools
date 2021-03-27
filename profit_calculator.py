@@ -117,14 +117,23 @@ def on_income(ts, asset, quantity, total):
     on_buy(ts, asset, quantity, total)
 
 
-def print_reports():
+def print_reports(year):
     if vv >= 2:
         print("=== GENERATING REPORTS ===")
 
     print(outputheader, end='')
 
-    netgain = sum([x.gain for x in total_profits])
+    if year is not None:
+        netgain = sum([x.gain for x in total_profits if x.sell_date.year == year])
+    else:
+        netgain = sum([x.gain for x in total_profits])
+
     for txn in total_profits:
+        if year is not None:
+            if txn.sell_date.year != year:
+                # It's not in the year of interest. skip.
+                continue
+
         print(outfmt.format(txn.quantity,
                             txn.asset,
                             txn.acq_date,
@@ -138,12 +147,14 @@ def print_reports():
 
     print("\n Other income: ")
     for income in other_income:
+        if year is not None and income[0].year != year:
+            continue
         print("Earned ${:10.2f} (as {} {}) on {}".format(income[3], income[2], income[1], income[0]))
     print("      -------------")
-    print("Tot:   ${:10.2f}".format(sum([x[3] for x in other_income])))
+    print("Tot:   ${:10.2f}".format(sum([x[3] for x in other_income if year is None or x[0].year == year])))
 
 
-def main(csv_filename):
+def main(csv_filename, year):
     with open(csv_filename, newline='') as csvfile:
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in txnreader:
@@ -186,13 +197,21 @@ def main(csv_filename):
                           Decimal(row[3]) * Decimal(row[4]))
             else:
                 print("IGNORING", txn_type)
-        print_reports()
+        print_reports(year)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbosity", action="count", default=0)
+    parser.add_argument("-y", "--year",
+                        help="The calendar year to generate reports for",
+                        default=str(datetime.datetime.now().year))
     parser.add_argument("csv_file", help="File to process")
     args = parser.parse_args()
     vv = args.verbosity
-    main(args.csv_file)
+    yr = args.year
+    if yr == "all":
+        yr = None
+    else:
+        yr = int(yr)
+    main(args.csv_file, yr)
