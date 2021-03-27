@@ -16,7 +16,7 @@ def btc_to_satoshi(btc):
     return int(btc * Decimal(1.0e8))
 
 
-queue = []
+queues = {}
 total_profits = []
 
 outputheader = """
@@ -60,36 +60,38 @@ class TransactionRecord:
             return "short"
 
 
-def on_buy(ts, quantity, total):
-    print("{} acquire  {:010.8f} BTC for {:6.2f} USD [[{:9.5f}]]\n"
-          .format(ts, quantity, total, total/quantity))
-    queue.append((ts, quantity, total/quantity))
+def on_buy(ts, asset, quantity, total):
+    print("{} acquire  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]\n"
+          .format(ts, quantity, asset, total, total/quantity))
+    if asset not in queues:
+        queues[asset] = []
+    queues[asset.upper()].append((ts, quantity, total/quantity))
 
 
-def on_sell(ts, quantity, total):
+def on_sell(ts, asset, quantity, total):
     sell_date = ts
 
-    print("{} dispose  {:010.8f} BTC for {:6.2f} USD [[{:9.5f}]]"
-          .format(ts, quantity, total, total/quantity), end='')
+    print("{} dispose  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]"
+          .format(ts, quantity, asset, total, total/quantity), end='')
 
     sell_value_per_qty = total/quantity
 
     gains = []
     while quantity > 0:
-        acqtime = queue[0][0]
-        buy_value_per_qty = queue[0][2]
+        acqtime = queues[asset][0][0]
+        buy_value_per_qty = queues[asset][0][2]
         qty = 0
 
-        if queue[0][1] > quantity:
+        if queues[asset][0][1] > quantity:
             qty = quantity
-            queue[0] = (queue[0][0], queue[0][1] - qty, queue[0][2])
+            queues[asset][0] = (queues[asset][0][0], queues[asset][0][1] - qty, queues[asset][0][2])
             quantity = 0
         else:
-            qty = queue[0][1]
+            qty = queues[asset][0][1]
             quantity -= qty
-            queue.pop(0)
+            queues[asset].pop(0)
         usd_basis = qty * buy_value_per_qty
-        gains.append(TransactionRecord(("{:10.8f} BTC".format(qty)),
+        gains.append(TransactionRecord(("{:10.8f} {}".format(qty, asset)),
                                        acqtime,
                                        sell_date,
                                        (qty * sell_value_per_qty),
@@ -114,18 +116,20 @@ def main(csv_filename):
                 continue
             txn_type = row[1]
             if txn_type.lower() == "buy":
-                on_buy(timestamp, Decimal(row[3]), Decimal(row[6]))
+                on_buy(timestamp, asset.upper(), Decimal(row[3]), Decimal(row[6]))
             elif txn_type.lower().startswith("receive"):
-                on_buy(timestamp, Decimal(row[3]), Decimal(row[3]) * Decimal(row[4]))
+                on_buy(timestamp, asset.upper(), Decimal(row[3]), Decimal(row[3]) * Decimal(row[4]))
             elif (txn_type.lower().startswith("paid")
                   or txn_type.lower().startswith("send")):
                 gains = on_sell(timestamp,
+                                asset.upper(),
                                 Decimal(row[3]),
                                 Decimal(row[3]) * Decimal(row[4]))
                 total_profits.extend(gains)
                 print('\n')
             elif txn_type.lower().startswith("sell"):
                 gains = on_sell(timestamp,
+                                asset.upper(),
                                 Decimal(row[3]),
                                 Decimal(row[6]))
                 total_profits.extend(gains)
