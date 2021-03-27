@@ -23,6 +23,7 @@ def btc_to_satoshi(btc):
 
 queues = {}
 total_profits = []
+other_income = []
 
 outputheader = """
 Sales and Other Dispositions of Capital Assets
@@ -106,6 +107,14 @@ def on_sell(ts, asset, quantity, total):
                                        usd_basis))
     return gains
 
+
+def on_income(ts, asset, quantity, total):
+    other_income.append((ts, asset, quantity, total))
+
+    # Basis is value at acquisition, same as buy.
+    on_buy(ts, asset, quantity, total)
+
+
 def main(csv_filename):
     with open(csv_filename, newline='') as csvfile:
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
@@ -139,6 +148,12 @@ def main(csv_filename):
                                 Decimal(row[6]))
                 total_profits.extend(gains)
                 print('\n')
+            elif (txn_type.lower().startswith("coinbase earn")
+                  or txn_type.lower().startswith("rewards income")):
+                on_income(timestamp,
+                          asset.upper(),
+                          Decimal(row[3]),
+                          Decimal(row[3]) * Decimal(row[4]))
             else:
                 print("IGNORING", txn_type)
         print(outputheader, end='')
@@ -155,6 +170,12 @@ def main(csv_filename):
                                 txn.getlong()), end='')
 
         print("\n   net profits: ${:8.2f}".format(netgain))
+
+        print("\n Other income: ")
+        for income in other_income:
+            print("Earned ${:10.2f} (as {} {}) on {}".format(income[3], income[2], income[1], income[0]))
+        print("      -------------")
+        print("Tot:   ${:10.2f}".format(sum([x[3] for x in other_income])))
 
 
 if __name__ == "__main__":
