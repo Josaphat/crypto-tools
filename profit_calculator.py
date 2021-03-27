@@ -143,15 +143,21 @@ def print_reports(year):
                             txn.gain,
                             txn.getlong()), end='')
 
-    print("\n   net profits: ${:8.2f}".format(netgain))
+    print("\n   net gains over period: ${:8.2f}".format(netgain))
 
     print("\n Other income: ")
     for income in other_income:
         if year is not None and income[0].year != year:
             continue
-        print("Earned ${:10.2f} (as {} {}) on {}".format(income[3], income[2], income[1], income[0]))
+        print("{}  ${:10.2f}  (as {} {})"
+              .format(income[0].strftime("%Y-%m-%d"),
+                      income[3],
+                      income[2],
+                      income[1]))
     print("      -------------")
-    print("Tot:   ${:10.2f}".format(sum([x[3] for x in other_income if year is None or x[0].year == year])))
+    print("Tot:   ${:10.2f}"
+          .format(sum([x[3] for x in other_income
+                       if year is None or x[0].year == year])))
 
 
 def main(csv_filename, year):
@@ -164,39 +170,65 @@ def main(csv_filename, year):
             try:
                 timestamp = dateutil.parser.parse(ts)
             except ValueError:
-                # skip it. It's some coinbase header nonsense.
+                # skip it. Transactions start with timestamps.
                 continue
-            asset = row[2]
-            txn_type = row[1]
-            if txn_type.lower() == "buy":
-                on_buy(timestamp, asset.upper(), Decimal(row[3]), Decimal(row[6]))
-            elif txn_type.lower().startswith("receive"):
-                on_buy(timestamp, asset.upper(), Decimal(row[3]), Decimal(row[3]) * Decimal(row[4]))
-            elif (txn_type.lower().startswith("paid")
-                  or txn_type.lower().startswith("send")):
+            asset = row[2].upper()
+            txn_type = row[1].strip().lower()
+            txn_quantity = Decimal(row[3])
+            txn_spotprice = Decimal(row[4])
+
+            # Subtotal does not include fees, whether on buys or sells.
+            txn_subtotal = Decimal(row[5]) if (
+                row[5] and len(row[5].strip()) > 0) else None
+
+            # Total Includes fees. On buys, fees are added to the subtotal to
+            # get the total. On Sells, fees are subtracted from the subtotal
+            # (fees are paid from proceeds).
+            txn_total = Decimal(row[6]) if (
+                row[6] and len(row[6].strip()) > 0) else None
+
+            # txn_fees = Decimal(row[7]) if (
+            #     row[7] and len(row[7].strip()) > 0) else None
+
+            calculated_value = txn_quantity * txn_spotprice
+
+            if txn_type == "buy" and txn_total != Decimal(0):
+                on_buy(timestamp, asset, txn_quantity, txn_total)
+            elif txn_type == "buy" and txn_total == Decimal(0):
+                if vv >= 1:
+                    print("Interpreting zero-value buy as income")
+                on_income(timestamp, asset, txn_quantity, calculated_value)
+            elif txn_type.startswith("receive"):
+                on_buy(timestamp, asset, txn_quantity, calculated_value)
+            elif (txn_type.startswith("paid")
+                  or txn_type.startswith("send")):
                 gains = on_sell(timestamp,
-                                asset.upper(),
-                                Decimal(row[3]),
-                                Decimal(row[3]) * Decimal(row[4]))
+                                asset,
+                                txn_quantity,
+                                calculated_value)
                 total_profits.extend(gains)
                 if vv >= 1:
                     print('\n')
-            elif txn_type.lower().startswith("sell"):
+            elif txn_type.startswith("sell"):
+                # Be sure to include fees in the proceeds
                 gains = on_sell(timestamp,
-                                asset.upper(),
-                                Decimal(row[3]),
-                                Decimal(row[6]))
+                                asset,
+                                txn_quantity,
+                                txn_subtotal)
                 total_profits.extend(gains)
                 if vv >= 1:
                     print('\n')
-            elif (txn_type.lower().startswith("coinbase earn")
-                  or txn_type.lower().startswith("rewards income")):
+            elif (txn_type.startswith("coinbase earn")
+                  or txn_type.startswith("rewards income")):
+                # Always use the computed total here since the given dollar
+                # value is rounded to the nearest cent.
                 on_income(timestamp,
-                          asset.upper(),
-                          Decimal(row[3]),
-                          Decimal(row[3]) * Decimal(row[4]))
+                          asset,
+                          txn_quantity,
+                          calculated_value)
             else:
-                print("IGNORING", txn_type)
+                print("=== WARNING! IGNORING '{}' TRANSACTION =="
+                      .format(txn_type))
         print_reports(year)
 
 
