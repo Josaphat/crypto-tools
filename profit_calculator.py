@@ -85,21 +85,22 @@ def on_sell(ts, asset, quantity, total):
               .format(ts, quantity, asset, total, total/quantity), end='')
 
     sell_value_per_qty = total/quantity
+    queue = queues[asset]
 
     gains = []
     while quantity > 0:
-        acqtime = queues[asset][0][0]
-        buy_value_per_qty = queues[asset][0][2]
+        acqtime = queue[0][0]
+        buy_value_per_qty = queue[0][2]
         qty = 0
 
-        if queues[asset][0][1] > quantity:
+        if queue[0][1] > quantity:
             qty = quantity
-            queues[asset][0] = (queues[asset][0][0], queues[asset][0][1] - qty, queues[asset][0][2])
+            queue[0] = (queue[0][0], queue[0][1] - qty, queue[0][2])
             quantity = 0
         else:
-            qty = queues[asset][0][1]
+            qty = queue[0][1]
             quantity -= qty
-            queues[asset].pop(0)
+            queue.pop(0)
         usd_basis = qty * buy_value_per_qty
         gains.append(TransactionRecord(asset,
                                        qty,
@@ -124,7 +125,8 @@ def print_reports(year):
     print(outputheader, end='')
 
     if year is not None:
-        netgain = sum([x.gain for x in total_profits if x.sell_date.year == year])
+        netgain = sum([x.gain for x in total_profits
+                       if x.sell_date.year == year])
     else:
         netgain = sum([x.gain for x in total_profits])
 
