@@ -29,18 +29,20 @@ Sales and Other Dispositions of Capital Assets
 """
 
 outfmt = """\
- {} | {:%Y-%m-%d} | {:%Y-%m-%d} | {:10.2f} | {:10.2f} | {:10.2f} | {}\t
+ {:<10f} {} | {:%Y-%m-%d} | {:%Y-%m-%d} | {:10.2f} | {:10.2f} | {:10.2f} | {}\t
 """
 
 
 class TransactionRecord:
     def __init__(self,
-                 description,
+                 asset,
+                 quantity,
                  date_acquired,
                  date_sold,
                  sale_price,
                  acq_price):
-        self.descr = description
+        self.asset = asset
+        self.quantity = quantity
         self.acq_date = date_acquired
         self.sell_date = date_sold
         self.proceeds = sale_price
@@ -91,7 +93,8 @@ def on_sell(ts, asset, quantity, total):
             quantity -= qty
             queues[asset].pop(0)
         usd_basis = qty * buy_value_per_qty
-        gains.append(TransactionRecord(("{:10.8f} {}".format(qty, asset)),
+        gains.append(TransactionRecord(asset,
+                                       qty,
                                        acqtime,
                                        sell_date,
                                        (qty * sell_value_per_qty),
@@ -137,7 +140,8 @@ def main(csv_filename):
 
         netgain = sum([x.gain for x in total_profits])
         for txn in total_profits:
-            print(outfmt.format(txn.descr,
+            print(outfmt.format(txn.quantity,
+                                txn.asset,
                                 txn.acq_date,
                                 txn.sell_date,
                                 txn.proceeds,
