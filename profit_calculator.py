@@ -29,6 +29,7 @@ import csv
 import dateutil.parser
 import datetime
 from decimal import Decimal
+import re
 
 # Approaches Chapernowne's number (base 10) with each revision.
 version = "0.12"
@@ -205,6 +206,8 @@ def main(csv_filename, year):
             # txn_fees = Decimal(row[7]) if (
             #     row[7] and len(row[7].strip()) > 0) else None
 
+            txn_notes = row[8]
+
             calculated_value = txn_quantity * txn_spotprice
 
             if txn_type == "buy" and txn_total != Decimal(0):
@@ -224,6 +227,28 @@ def main(csv_filename, year):
                 total_profits.extend(gains)
                 if vv >= 1:
                     print('\n')
+            elif (txn_type.startswith("convert")):
+                # Convert is a combination buy/sell. We basically
+                # treat it like if we sold the given amount for the
+                # total inclusive of fees.  We then purchase the
+                # "converted to" amount of the converted-to currency.
+
+                m = re.match("Converted (\d+\.\d*) ([a-zA-Z0-9]*) to (\d+\.\d*) ([a-zA-Z0-9]*)", txn_notes)
+
+                conv_to_amt = Decimal(m.group(3))
+                conv_to_asset = m.group(4)
+
+                if vv >= 1:
+                    print('Convert:\n\t', end='')
+                gains = on_sell(timestamp, asset, txn_quantity, txn_total)
+                total_profits.extend(gains)
+
+                if vv >= 1:
+                    print('\n\t', end='')
+                on_buy(timestamp, conv_to_asset, conv_to_amt, txn_subtotal)
+
+                # print("== Converted {} {} into {} {}".format(txn_quantity, asset, conv_to_amt, conv_to_asset))
+
             elif txn_type.startswith("sell"):
                 # Be sure to include fees in the proceeds
                 gains = on_sell(timestamp,
@@ -257,7 +282,10 @@ This program is free software.
     parser = argparse.ArgumentParser(prog='profit_calculator.py',
                                      description=descr)
     parser.add_argument('--version', action='version',
-                        version='%(prog)s '+version + " This application is licensed under GNU GPL.")
+                        version='%(prog)s ' + version
+                        + """Copyright (C) 2021  Jos Valdivia
+This program comes with ABSOLUTELY NO WARRANTY.
+It is free software, licensed under GNU GPL. See the GNU General Public License more details. If you didn't get a copy of the file license, see <https://www.gnu.org/licenses/>.""")
     parser.add_argument("-v", "--verbosity", action="count", default=0)
     parser.add_argument("-y", "--year",
                         help="Year for the reports. Defaults to current year. Also accepts 'all'.",
