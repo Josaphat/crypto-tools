@@ -74,6 +74,9 @@ class TransactionRecord:
         year = datetime.timedelta(weeks=52)
         self.islong = elapsed > year
 
+    def __str__(self):
+        return outfmt.format(self.quantity, self.asset, self.acq_date, self.sell_date, self.proceeds, self.basis, self.gain, self.getlong())
+
     def getlong(self):
         if self.islong:
             return "long"
@@ -130,10 +133,45 @@ def on_income(ts, asset, quantity, total):
     # Basis is value at acquisition, same as buy.
     on_buy(ts, asset, quantity, total)
 
+def on_convert(ts, src_asset, src_quantity, proceeds, tgt_asset, tgt_quantity, tgt_basis):
+    """Track a conversion of src_asset to tgt_asset.
+
+    ts is the timestamp of the transaction.
+
+    src_asset is the asset being converted.
+
+    src_quantity is the amount of src_asset being converted.
+
+    proceeds is the total value of the transaction
+    (inclusive of any fees).
+
+    tgt_asset is the asset being converted TO.
+
+    tgt_quantity is the amount of tgt_asset
+    being converted TO.
+
+    tgt_basis is the value of the target
+    asset, usually simply the proceeds minus
+    any fees.
+    """
+
+    # Convert is like a "sell" immediately followed by a "buy".
+    if vv >= 1:
+        print("Converting", src_quantity, src_asset, "to", tgt_quantity, tgt_asset)
+    gains = on_sell(ts, src_asset, src_quantity, proceeds)
+    total_profits.extend(gains)
+    if vv >= 1:
+        print("")  # We need to a append a (single) newline to the output of on_sell
+    on_buy(ts, tgt_asset, tgt_quantity, tgt_basis)
 
 def print_reports(year):
     if vv >= 2:
         print("=== GENERATING REPORTS ===")
+
+    # TODO: Generate the balance at the end of the given year.
+    print("Current account balances (Ignores given year...)\n====================\n")
+    for asset in queues:
+        print(asset, sum([x[1] for x in queues[asset]]))
 
     print(outputheader, end='')
 
@@ -187,6 +225,12 @@ def main(csv_filename, year):
         COL_TOTAL_WITH_FEES=7
         COL_FEES=8
         COL_NOTES=9
+
+        # FIXME: Since we've added, 'convert' handling, we need to read all the
+        # transactions and sort them by the timestamp. The CSVs are grouped
+        # together by asset type, but "convert" transactions only appear in the
+        # source asset.  This means that it's possible for the lots to deviate
+        # from FIFO order.
 
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in txnreader:
@@ -256,6 +300,25 @@ def main(csv_filename, year):
                           asset,
                           txn_quantity,
                           calculated_value)
+            elif txn_type == "convert":
+                # The target quantity and asset is only in the 'Notes'
+                # column. Parse out the info.
+                notes = row[COL_NOTES].split()
+                if notes[0] != "Converted" or notes[3].lower() != "to":
+                    print("Invalid 'Notes' column format for a 'Convert' transaction")
+                    raise ValueError
+                # if notes[1] != str(txn_quantity):
+                    # print(txn_quantity, " doesn't match notes qty: ", notes[1])
+                    # pass
+
+                if notes[2].upper() != asset:
+                    print(asset, " does not match notes asset: ", notes[2].upper())
+                    raise ValueError
+
+                tgt_asset = notes[5]
+                tgt_quantity = Decimal(notes[4])
+
+                on_convert(timestamp, asset, txn_quantity, txn_total,  tgt_asset, tgt_quantity, txn_subtotal)
             else:
                 print("=== WARNING! IGNORING '{}' TRANSACTION =="
                       .format(txn_type))

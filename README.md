@@ -22,9 +22,6 @@ The program makes several assumptions:
    was made.
 4. Always uses First-in, First-Out (FIFO) disposal method.
 
-**NOTE**: The program does not currently handle conversions *between*
-cryptocurrencies.
-
 ## License
 
 The programs contained in this repository are free software: you can
