@@ -177,30 +177,45 @@ def print_reports(year):
 
 def main(csv_filename, year):
     with open(csv_filename, newline='') as csvfile:
+        COL_TIMESTAMP=0
+        COL_TRANSACTION_TYPE=1
+        COL_ASSET=2
+        COL_QUANTITY_TRANSACTED=3
+        COL_SPOT_PRICE_CURRENCY=4
+        COL_SPOT_PRICE_AT_TRANSACTION=5
+        COL_SUBTOTAL=6
+        COL_TOTAL_WITH_FEES=7
+        COL_FEES=8
+        COL_NOTES=9
+
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in txnreader:
             if len(row) == 0:
                 continue
-            ts = row[0]
+            ts = row[COL_TIMESTAMP]
             try:
                 timestamp = dateutil.parser.parse(ts)
             except ValueError:
                 # skip it. Transactions start with timestamps.
                 continue
-            asset = row[2].upper()
-            txn_type = row[1].strip().lower()
-            txn_quantity = Decimal(row[3])
-            txn_spotprice = Decimal(row[4])
+            asset = row[COL_ASSET].upper()
+            txn_type = row[COL_TRANSACTION_TYPE].strip().lower()
+            txn_quantity = Decimal(row[COL_QUANTITY_TRANSACTED])
+            txn_spotprice = Decimal(row[COL_SPOT_PRICE_AT_TRANSACTION])
+            txn_spotprice_currency = row[COL_SPOT_PRICE_CURRENCY].strip().upper()
+            if txn_spotprice_currency != "USD":
+                print("==== Only USD Is Supported ====")
+                raise ValueError
 
             # Subtotal does not include fees, whether on buys or sells.
-            txn_subtotal = Decimal(row[5]) if (
-                row[5] and len(row[5].strip()) > 0) else None
+            txn_subtotal = Decimal(row[COL_SUBTOTAL]) if (
+                row[COL_SUBTOTAL] and len(row[COL_SUBTOTAL].strip()) > 0) else None
 
             # Total Includes fees. On buys, fees are added to the subtotal to
             # get the total. On Sells, fees are subtracted from the subtotal
             # (fees are paid from proceeds).
-            txn_total = Decimal(row[6]) if (
-                row[6] and len(row[6].strip()) > 0) else None
+            txn_total = Decimal(row[COL_TOTAL_WITH_FEES]) if (
+                row[COL_TOTAL_WITH_FEES] and len(row[COL_TOTAL_WITH_FEES].strip()) > 0) else None
 
             # txn_fees = Decimal(row[7]) if (
             #     row[7] and len(row[7].strip()) > 0) else None
