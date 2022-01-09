@@ -29,6 +29,7 @@ import csv
 import dateutil.parser
 import datetime
 from decimal import Decimal
+from typing import NamedTuple
 
 # Approaches Chapernowne's number (base 10) with each revision.
 version = "0.12"
@@ -213,6 +214,20 @@ def print_reports(year):
                        if year is None or x[0].year == year])))
 
 
+class InputTransaction(NamedTuple):
+    """A data type to hold the data read from the CSV before actually processing it."""
+    timestamp: datetime.datetime
+    type: str
+    asset: str
+    quantity: Decimal
+    spotprice: Decimal
+    spotprice_currency: str
+    subtotal: Decimal
+    total: Decimal
+    fees: Decimal
+    notes: str
+
+
 def main(csv_filename, year):
     with open(csv_filename, newline='') as csvfile:
         COL_TIMESTAMP=0
@@ -226,12 +241,10 @@ def main(csv_filename, year):
         COL_FEES=8
         COL_NOTES=9
 
-        # FIXME: Since we've added, 'convert' handling, we need to read all the
-        # transactions and sort them by the timestamp. The CSVs are grouped
-        # together by asset type, but "convert" transactions only appear in the
-        # source asset.  This means that it's possible for the lots to deviate
-        # from FIFO order.
-
+        # Read in all the transactions from the CSV and do light pre-processing
+        # and validation.  We'll then sort them by timestamp to make sure we're
+        # using lots in FIFO order.
+        txns=[]
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in txnreader:
             if len(row) == 0:
@@ -242,7 +255,7 @@ def main(csv_filename, year):
             except ValueError:
                 # skip it. Transactions start with timestamps.
                 continue
-            asset = row[COL_ASSET].upper()
+            txn_asset = row[COL_ASSET].upper()
             txn_type = row[COL_TRANSACTION_TYPE].strip().lower()
             txn_quantity = Decimal(row[COL_QUANTITY_TRANSACTED])
             txn_spotprice = Decimal(row[COL_SPOT_PRICE_AT_TRANSACTION])
@@ -261,67 +274,77 @@ def main(csv_filename, year):
             txn_total = Decimal(row[COL_TOTAL_WITH_FEES]) if (
                 row[COL_TOTAL_WITH_FEES] and len(row[COL_TOTAL_WITH_FEES].strip()) > 0) else None
 
-            # txn_fees = Decimal(row[7]) if (
-            #     row[7] and len(row[7].strip()) > 0) else None
+            txn_fees = Decimal(row[COL_FEES]) if (
+                row[COL_FEES] and len(row[COL_FEES].strip()) > 0) else None
 
-            calculated_value = txn_quantity * txn_spotprice
+            txn_notes = row[COL_NOTES]
 
-            if txn_type == "buy" and txn_total != Decimal(0):
-                on_buy(timestamp, asset, txn_quantity, txn_total)
-            elif txn_type == "buy" and txn_total == Decimal(0):
+            txns.append(
+                InputTransaction(timestamp, txn_type, txn_asset, txn_quantity,
+                                 txn_spotprice, txn_spotprice_currency,
+                                 txn_subtotal, txn_total, txn_fees, txn_notes))
+
+        # Sort the txns chronologically
+        txns.sort(key=lambda txn: txn.timestamp)
+
+        for txn in txns:
+            calculated_value = txn.quantity * txn.spotprice
+
+            if txn.type == "buy" and txn.total != Decimal(0):
+                on_buy(txn.timestamp, txn.asset, txn.quantity, txn.total)
+            elif txn.type == "buy" and txn.total == Decimal(0):
                 if vv >= 1:
                     print("Interpreting zero-value buy as income")
-                on_income(timestamp, asset, txn_quantity, calculated_value)
-            elif txn_type.startswith("receive"):
-                on_buy(timestamp, asset, txn_quantity, calculated_value)
-            elif (txn_type.startswith("paid")
-                  or txn_type.startswith("send")):
-                gains = on_sell(timestamp,
-                                asset,
-                                txn_quantity,
+                on_income(txn.timestamp, txn.asset, txn.quantity,
+                          calculated_value)
+            elif txn.type.startswith("receive"):
+                on_buy(txn.timestamp, txn.asset, txn.quantity,
+                       calculated_value)
+            elif (txn.type.startswith("paid") or txn.type.startswith("send")):
+                gains = on_sell(txn.timestamp, txn.asset, txn.quantity,
                                 calculated_value)
                 total_profits.extend(gains)
                 if vv >= 1:
                     print('\n')
-            elif txn_type.startswith("sell"):
+            elif txn.type.startswith("sell"):
                 # Be sure to include fees in the proceeds
-                gains = on_sell(timestamp,
-                                asset,
-                                txn_quantity,
-                                txn_subtotal)
+                gains = on_sell(txn.timestamp, txn.asset, txn.quantity,
+                                txn.subtotal)
                 total_profits.extend(gains)
                 if vv >= 1:
                     print('\n')
-            elif (txn_type.startswith("coinbase earn")
-                  or txn_type.startswith("rewards income")):
+            elif (txn.type.startswith("coinbase earn")
+                  or txn.type.startswith("rewards income")):
                 # Always use the computed total here since the given dollar
                 # value is rounded to the nearest cent.
-                on_income(timestamp,
-                          asset,
-                          txn_quantity,
+                on_income(txn.timestamp, txn.asset, txn.quantity,
                           calculated_value)
-            elif txn_type == "convert":
+            elif txn.type == "convert":
                 # The target quantity and asset is only in the 'Notes'
                 # column. Parse out the info.
-                notes = row[COL_NOTES].split()
+                notes = txn.notes.split()
                 if notes[0] != "Converted" or notes[3].lower() != "to":
-                    print("Invalid 'Notes' column format for a 'Convert' transaction")
+                    print(
+                        "Invalid 'Notes' column format for a 'Convert' transaction"
+                    )
                     raise ValueError
-                # if notes[1] != str(txn_quantity):
-                    # print(txn_quantity, " doesn't match notes qty: ", notes[1])
-                    # pass
+                # if notes[1] != str(txn.quantity):
+                #   print(txn.quantity, " doesn't match notes qty: ", notes[1])
+                #   pass
 
-                if notes[2].upper() != asset:
-                    print(asset, " does not match notes asset: ", notes[2].upper())
+                if notes[2].upper() != txn.asset:
+                    print(txn.asset, " does not match notes asset: ",
+                          notes[2].upper())
                     raise ValueError
 
                 tgt_asset = notes[5]
                 tgt_quantity = Decimal(notes[4])
 
-                on_convert(timestamp, asset, txn_quantity, txn_total,  tgt_asset, tgt_quantity, txn_subtotal)
+                on_convert(txn.timestamp, txn.asset, txn.quantity, txn.total,
+                           tgt_asset, tgt_quantity, txn.subtotal)
             else:
-                print("=== WARNING! IGNORING '{}' TRANSACTION =="
-                      .format(txn_type))
+                print("=== WARNING! IGNORING '{}' TRANSACTION ==".format(
+                    txn.type))
         print_reports(year)
 
 
