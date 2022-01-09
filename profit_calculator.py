@@ -31,8 +31,8 @@ import datetime
 from decimal import Decimal
 from typing import NamedTuple
 
-# Approaches Chapernowne's number (base 10) with each revision.
-version = "0.12"
+# Approaches Champernowne's number (base 10) with each revision.
+version = "0.123"
 
 vv = 0
 queues = {}
@@ -43,13 +43,13 @@ outputheader = """
 Sales and Other Dispositions of Capital Assets
 ----------------------------------------------
 
-   Description  |    Date    |    Date    |            |    Cost    |   Gains/   | Short or
-   of Property  |  Acquired  |    Sold    |  Proceeds  |  (basis)   |   Losses   | Long term
-----------------+------------+------------+------------+------------+------------+------------
+    Description   |    Date    |    Date    |            |    Cost    |   Gains/   | Short or
+    of Property   |  Acquired  |    Sold    |  Proceeds  |  (basis)   |   Losses   | Long term
+------------------+------------+------------+------------+------------+------------+------------
 """
 
 outfmt = """\
- {:<10f} {} | {:%Y-%m-%d} | {:%Y-%m-%d} | {:10.2f} | {:10.2f} | {:10.2f} | {}\t
+ {:<10f} {: >5} | {:%Y-%m-%d} | {:%Y-%m-%d} | {:10.2f} | {:10.2f} | {:10.2f} | {}\t
 """
 
 
@@ -171,7 +171,7 @@ def print_reports(year):
 
     # TODO: Generate the balance at the end of the given year.
     print("Current account balances (Ignores given year...)")
-    print("\n====================\n")
+    print("====================\n")
     for asset in queues:
         print(asset, sum([x[1] for x in queues[asset]]))
 
@@ -180,6 +180,10 @@ def print_reports(year):
     if year is not None:
         netgain = sum(
             [x.gain for x in total_profits if x.sell_date.year == year])
+        total_proceeds = sum(
+            [x.proceeds for x in total_profits if x.sell_date.year == year])
+        total_basis = sum(
+            [x.basis for x in total_profits if x.sell_date.year == year])
     else:
         netgain = sum([x.gain for x in total_profits])
 
@@ -194,7 +198,9 @@ def print_reports(year):
                             txn.getlong()),
               end='')
 
-    print("\n   net gains over period: ${:8.2f}".format(netgain))
+    print("\n   tot proceeds over period: ${:8.2f}".format(total_proceeds))
+    print("   tot basis over period: ${:8.2f}".format(total_basis))
+    print("   net gains over period: ${:8.2f}".format(netgain))
 
     print("\n Other income: ")
     for income in other_income:
