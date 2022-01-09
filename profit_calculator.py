@@ -54,12 +54,7 @@ outfmt = """\
 
 
 class TransactionRecord:
-    def __init__(self,
-                 asset,
-                 quantity,
-                 date_acquired,
-                 date_sold,
-                 sale_price,
+    def __init__(self, asset, quantity, date_acquired, date_sold, sale_price,
                  acq_price):
         self.asset = asset
         self.quantity = quantity
@@ -76,7 +71,9 @@ class TransactionRecord:
         self.islong = elapsed > year
 
     def __str__(self):
-        return outfmt.format(self.quantity, self.asset, self.acq_date, self.sell_date, self.proceeds, self.basis, self.gain, self.getlong())
+        return outfmt.format(self.quantity, self.asset, self.acq_date,
+                             self.sell_date, self.proceeds, self.basis,
+                             self.gain, self.getlong())
 
     def getlong(self):
         if self.islong:
@@ -87,21 +84,22 @@ class TransactionRecord:
 
 def on_buy(ts, asset, quantity, total):
     if vv >= 1:
-        print("{} acquire  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]\n"
-              .format(ts, quantity, asset, total, total/quantity))
+        print("{} acquire  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]\n".format(
+            ts, quantity, asset, total, total / quantity))
     if asset not in queues:
         queues[asset] = []
-    queues[asset.upper()].append((ts, quantity, total/quantity))
+    queues[asset.upper()].append((ts, quantity, total / quantity))
 
 
 def on_sell(ts, asset, quantity, total):
     sell_date = ts
 
     if vv >= 1:
-        print("{} dispose  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]"
-              .format(ts, quantity, asset, total, total/quantity), end='')
+        print("{} dispose  {:010.8f} {} for {:6.2f} USD [[{:9.5f}]]".format(
+            ts, quantity, asset, total, total / quantity),
+              end='')
 
-    sell_value_per_qty = total/quantity
+    sell_value_per_qty = total / quantity
     queue = queues[asset]
 
     gains = []
@@ -119,12 +117,9 @@ def on_sell(ts, asset, quantity, total):
             quantity -= qty
             queue.pop(0)
         usd_basis = qty * buy_value_per_qty
-        gains.append(TransactionRecord(asset,
-                                       qty,
-                                       acqtime,
-                                       sell_date,
-                                       (qty * sell_value_per_qty),
-                                       usd_basis))
+        gains.append(
+            TransactionRecord(asset, qty, acqtime, sell_date,
+                              (qty * sell_value_per_qty), usd_basis))
     return gains
 
 
@@ -134,7 +129,9 @@ def on_income(ts, asset, quantity, total):
     # Basis is value at acquisition, same as buy.
     on_buy(ts, asset, quantity, total)
 
-def on_convert(ts, src_asset, src_quantity, proceeds, tgt_asset, tgt_quantity, tgt_basis):
+
+def on_convert(ts, src_asset, src_quantity, proceeds, tgt_asset, tgt_quantity,
+               tgt_basis):
     """Track a conversion of src_asset to tgt_asset.
 
     ts is the timestamp of the transaction.
@@ -158,27 +155,31 @@ def on_convert(ts, src_asset, src_quantity, proceeds, tgt_asset, tgt_quantity, t
 
     # Convert is like a "sell" immediately followed by a "buy".
     if vv >= 1:
-        print("Converting", src_quantity, src_asset, "to", tgt_quantity, tgt_asset)
+        print("Converting", src_quantity, src_asset, "to", tgt_quantity,
+              tgt_asset)
     gains = on_sell(ts, src_asset, src_quantity, proceeds)
     total_profits.extend(gains)
     if vv >= 1:
-        print("")  # We need to a append a (single) newline to the output of on_sell
+        # We need to a append a (single) newline to the output of on_sell
+        print("")
     on_buy(ts, tgt_asset, tgt_quantity, tgt_basis)
+
 
 def print_reports(year):
     if vv >= 2:
         print("=== GENERATING REPORTS ===")
 
     # TODO: Generate the balance at the end of the given year.
-    print("Current account balances (Ignores given year...)\n====================\n")
+    print("Current account balances (Ignores given year...)")
+    print("\n====================\n")
     for asset in queues:
         print(asset, sum([x[1] for x in queues[asset]]))
 
     print(outputheader, end='')
 
     if year is not None:
-        netgain = sum([x.gain for x in total_profits
-                       if x.sell_date.year == year])
+        netgain = sum(
+            [x.gain for x in total_profits if x.sell_date.year == year])
     else:
         netgain = sum([x.gain for x in total_profits])
 
@@ -188,14 +189,10 @@ def print_reports(year):
                 # It's not in the year of interest. skip.
                 continue
 
-        print(outfmt.format(txn.quantity,
-                            txn.asset,
-                            txn.acq_date,
-                            txn.sell_date,
-                            txn.proceeds,
-                            txn.basis,
-                            txn.gain,
-                            txn.getlong()), end='')
+        print(outfmt.format(txn.quantity, txn.asset, txn.acq_date,
+                            txn.sell_date, txn.proceeds, txn.basis, txn.gain,
+                            txn.getlong()),
+              end='')
 
     print("\n   net gains over period: ${:8.2f}".format(netgain))
 
@@ -203,15 +200,12 @@ def print_reports(year):
     for income in other_income:
         if year is not None and income[0].year != year:
             continue
-        print("{}  ${:10.2f}  (as {} {})"
-              .format(income[0].strftime("%Y-%m-%d"),
-                      income[3],
-                      income[2],
-                      income[1]))
+        print("{}  ${:10.2f}  (as {} {})".format(
+            income[0].strftime("%Y-%m-%d"), income[3], income[2], income[1]))
     print("      -------------")
-    print("Tot:   ${:10.2f}"
-          .format(sum([x[3] for x in other_income
-                       if year is None or x[0].year == year])))
+    print("Tot:   ${:10.2f}".format(
+        sum([x[3] for x in other_income
+             if year is None or x[0].year == year])))
 
 
 class InputTransaction(NamedTuple):
@@ -230,21 +224,21 @@ class InputTransaction(NamedTuple):
 
 def main(csv_filename, year):
     with open(csv_filename, newline='') as csvfile:
-        COL_TIMESTAMP=0
-        COL_TRANSACTION_TYPE=1
-        COL_ASSET=2
-        COL_QUANTITY_TRANSACTED=3
-        COL_SPOT_PRICE_CURRENCY=4
-        COL_SPOT_PRICE_AT_TRANSACTION=5
-        COL_SUBTOTAL=6
-        COL_TOTAL_WITH_FEES=7
-        COL_FEES=8
-        COL_NOTES=9
+        COL_TIMESTAMP = 0
+        COL_TRANSACTION_TYPE = 1
+        COL_ASSET = 2
+        COL_QUANTITY_TRANSACTED = 3
+        COL_SPOT_PRICE_CURRENCY = 4
+        COL_SPOT_PRICE_AT_TRANSACTION = 5
+        COL_SUBTOTAL = 6
+        COL_TOTAL_WITH_FEES = 7
+        COL_FEES = 8
+        COL_NOTES = 9
 
         # Read in all the transactions from the CSV and do light pre-processing
         # and validation.  We'll then sort them by timestamp to make sure we're
         # using lots in FIFO order.
-        txns=[]
+        txns = []
         txnreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         for row in txnreader:
             if len(row) == 0:
@@ -259,20 +253,23 @@ def main(csv_filename, year):
             txn_type = row[COL_TRANSACTION_TYPE].strip().lower()
             txn_quantity = Decimal(row[COL_QUANTITY_TRANSACTED])
             txn_spotprice = Decimal(row[COL_SPOT_PRICE_AT_TRANSACTION])
-            txn_spotprice_currency = row[COL_SPOT_PRICE_CURRENCY].strip().upper()
+            txn_spotprice_currency = row[COL_SPOT_PRICE_CURRENCY].strip(
+            ).upper()
             if txn_spotprice_currency != "USD":
                 print("==== Only USD Is Supported ====")
                 raise ValueError
 
             # Subtotal does not include fees, whether on buys or sells.
             txn_subtotal = Decimal(row[COL_SUBTOTAL]) if (
-                row[COL_SUBTOTAL] and len(row[COL_SUBTOTAL].strip()) > 0) else None
+                row[COL_SUBTOTAL]
+                and len(row[COL_SUBTOTAL].strip()) > 0) else None
 
             # Total Includes fees. On buys, fees are added to the subtotal to
             # get the total. On Sells, fees are subtracted from the subtotal
             # (fees are paid from proceeds).
             txn_total = Decimal(row[COL_TOTAL_WITH_FEES]) if (
-                row[COL_TOTAL_WITH_FEES] and len(row[COL_TOTAL_WITH_FEES].strip()) > 0) else None
+                row[COL_TOTAL_WITH_FEES]
+                and len(row[COL_TOTAL_WITH_FEES].strip()) > 0) else None
 
             txn_fees = Decimal(row[COL_FEES]) if (
                 row[COL_FEES] and len(row[COL_FEES].strip()) > 0) else None
@@ -357,12 +354,17 @@ This program is free software.
 """
     parser = argparse.ArgumentParser(prog='profit_calculator.py',
                                      description=descr)
-    parser.add_argument('--version', action='version',
-                        version='%(prog)s '+version + " This application is licensed under GNU GPL.")
+    parser.add_argument('--version',
+                        action='version',
+                        version='%(prog)s ' + version +
+                        " This application is licensed under GNU GPL.")
     parser.add_argument("-v", "--verbosity", action="count", default=0)
-    parser.add_argument("-y", "--year",
-                        help="Year for the reports. Defaults to current year. Also accepts 'all'.",
-                        default=str(datetime.datetime.now().year))
+    parser.add_argument(
+        "-y",
+        "--year",
+        help=
+        "Year for the reports. Defaults to current year. Also accepts 'all'.",
+        default=str(datetime.datetime.now().year))
     parser.add_argument("csv_file", help="File to process")
     args = parser.parse_args()
     vv = args.verbosity
