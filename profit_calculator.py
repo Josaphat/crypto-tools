@@ -2,7 +2,7 @@
 #
 # profit_calculator.py - Processes Coinbase CSV for gain/loss information.
 #
-# Copyright (C) 2021 Jos Valdivia
+# Copyright (C) 2021-2022 Jos Valdivia
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -363,7 +363,8 @@ This program is free software.
     parser.add_argument('--version',
                         action='version',
                         version='%(prog)s ' + version +
-                        " This application is licensed under GNU GPL.")
+                        " Copyright (C) 2021-2022  Jos Valdivia. This program comes with ABSOLUTELY NO WARRANTY. It is free software, licensed under GNU GPL. See LICENSE.md for details."
+                        )
     parser.add_argument("-v", "--verbosity", action="count", default=0)
     parser.add_argument(
         "-y",
